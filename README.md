@@ -1,1 +1,1 @@
-# Hierarchical-Navigable-Small-Worlds-HNSW-
+# Hierarchical-Navigable-Small-Worlds-HNSW
