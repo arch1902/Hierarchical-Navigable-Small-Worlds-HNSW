@@ -15,7 +15,11 @@ Path of the to_students folder from personal scratch
 
 */
 
-// void f(int tid, ){
+// void SearchLayer(){
+
+// }
+
+// void QueryHNSW(int tid, ){
 
 // }
 
@@ -24,85 +28,85 @@ int main(int argc, char* argv[]){
     fstream fs;
 
     int max_level;
-    fs.open("to_students/max_level.txt",ios::in); //open a file to perform read operation using file object
-    if (fs.is_open()){ //checking whether the file is open
+    fs.open("to_students/max_level.txt",ios::in); 
+    if (fs.is_open()){ 
         string tp;
-        while(getline(fs, tp)){ //read data from file object and put it into string.
+        while(getline(fs, tp)){ 
             if(tp=="") break;
             max_level = stoi(tp);
             break;
         }
-        fs.close(); //close the file object.
+        fs.close(); 
     }
     //cout<<"1"<<endl;
 
     int ep;
-    fs.open("to_students/ep.txt",ios::in); //open a file to perform read operation using file object
-    if (fs.is_open()){ //checking whether the file is open
+    fs.open("to_students/ep.txt",ios::in); 
+    if (fs.is_open()){ 
         string tp;
-        while(getline(fs, tp)){ //read data from file object and put it into string.
+        while(getline(fs, tp)){ 
             if(tp=="") break;
             ep = stoi(tp);
             break;
         }
-        fs.close(); //close the file object.
+        fs.close(); 
     }
     //cout<<"2"<<endl;
 
     vector<int> level;
-    fs.open("to_students/level.txt",ios::in); //open a file to perform read operation using file object
-    if (fs.is_open()){ //checking whether the file is open
+    fs.open("to_students/level.txt",ios::in); 
+    if (fs.is_open()){ 
         string tp;
-        while(getline(fs, tp)){ //read data from file object and put it into string.
+        while(getline(fs, tp)){ 
             if(tp=="") break;
             level.push_back(stoi(tp));
         }
-        fs.close(); //close the file object.
+        fs.close(); 
     }
     //cout<<"3"<<endl;
 
     vector<int> index;
-    fs.open("to_students/index.txt",ios::in); //open a file to perform read operation using file object
-    if (fs.is_open()){ //checking whether the file is open
+    fs.open("to_students/index.txt",ios::in); 
+    if (fs.is_open()){ 
         string tp;
-        while(getline(fs, tp)){ //read data from file object and put it into string.
+        while(getline(fs, tp)){ 
             if(tp=="") break;
             index.push_back(stoi(tp));
         }
-        fs.close(); //close the file object.
+        fs.close(); 
     }
     //cout<<"4"<<endl;
 
     vector<int> indptr;
-    fs.open("to_students/indptr.txt",ios::in); //open a file to perform read operation using file object
-    if (fs.is_open()){ //checking whether the file is open
+    fs.open("to_students/indptr.txt",ios::in); 
+    if (fs.is_open()){ 
         string tp;
-        while(getline(fs, tp)){ //read data from file object and put it into string.
+        while(getline(fs, tp)){ 
             if(tp=="") break;
             indptr.push_back(stoi(tp));
         }
-        fs.close(); //close the file object.
+        fs.close(); 
     }
     //cout<<"5"<<endl;
 
     vector<int> level_offset;
-    fs.open("to_students/level_offset.txt",ios::in); //open a file to perform read operation using file object
-    if (fs.is_open()){ //checking whether the file is open
+    fs.open("to_students/level_offset.txt",ios::in); 
+    if (fs.is_open()){ 
         string tp;
-        while(getline(fs, tp)){ //read data from file object and put it into string.
+        while(getline(fs, tp)){ 
             if(tp=="") break;
             level_offset.push_back(stoi(tp));
         }
-        fs.close(); //close the file object.
+        fs.close(); 
     }
     //cout<<"6"<<endl;
 
     vector<vector<int>> vect;
-    fs.open("to_students/vect.txt",ios::in); //open a file to perform read operation using file object
-    if (fs.is_open()){ //checking whether the file is open
+    fs.open("to_students/vect.txt",ios::in); 
+    if (fs.is_open()){ 
         string tp;
 
-        while(getline(fs, tp)){ //read data from file object and put it into string.
+        while(getline(fs, tp)){ 
             if(tp=="") break;
             istringstream ss(tp);
     		string word;
@@ -113,15 +117,15 @@ int main(int argc, char* argv[]){
     		}
             vect.push_back(temp);
         }
-        fs.close(); //close the file object.
+        fs.close(); 
     }
     //cout<<"7"<<endl;
 
     vector<vector<int>> user;
-    fs.open("to_students/user.txt",ios::in); //open a file to perform read operation using file object
-    if (fs.is_open()){ //checking whether the file is open
+    fs.open("to_students/user.txt",ios::in); 
+    if (fs.is_open()){ 
         string tp;
-        while(getline(fs, tp)){ //read data from file object and put it into string.
+        while(getline(fs, tp)){ 
             if(tp=="") break;
             istringstream ss(tp);
     		string word;
@@ -132,9 +136,16 @@ int main(int argc, char* argv[]){
     		}
             user.push_back(temp);
         }
-        fs.close(); //close the file object.
+        fs.close(); 
     }
     //cout<<"8"<<endl;
+
+    cout<<level.size()<<endl;
+    cout<<index.size()<<endl;
+    cout<<indptr.size()<<endl;
+    cout<<level_offset.size()<<endl;
+    cout<<vect.size()<<endl;
+    cout<<user.size()<<endl;
 
 
     int rank, size;
@@ -145,7 +156,7 @@ int main(int argc, char* argv[]){
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    // f();
+    //QueryHNSW(rank, );
 
     MPI_Finalize();
  
