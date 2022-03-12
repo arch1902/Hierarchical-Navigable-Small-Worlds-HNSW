@@ -8,6 +8,13 @@
 
 using namespace std;
 
+/*
+
+Path of the to_students folder from personal scratch
+../../../../../scratch/cse/phd/anz198717/TA/COL380/A3/to_students
+
+*/
+
 // void f(int tid, ){
 
 // }
