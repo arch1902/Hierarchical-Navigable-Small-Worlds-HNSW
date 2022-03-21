@@ -96,7 +96,7 @@ int main(int argc, char* argv[]){
     int k = atoi(argv[1]);
     int C = atoi(argv[2]);
 
-    cout<<k<<" recommendations using "<<C<<" threads !"<<endl;
+    // cout<<k<<" recommendations using "<<C<<" threads !"<<endl;
 
     int max_level;
     fs.open("to_students/max_level.txt",ios::in); 
