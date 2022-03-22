@@ -16,7 +16,7 @@ Path of the to_students folder from personal scratch
 
 */
 
-double cosine_dist(vector<double> U, vector<double> V)
+double cosine_dist(vector<double> &U, vector<double> &V)
 {
     double dotp = 0.0, norm_u = 0.0, norm_v = 0.0 ;
     for(int i = 0; i < U.size(); i++) {
@@ -27,8 +27,8 @@ double cosine_dist(vector<double> U, vector<double> V)
     return 1 - dotp/(sqrt(norm_u*norm_v)) ;
 }
 
-priority_queue<pair<double,int>> SearchLayer(vector<double> q,priority_queue<pair<double,int>> candidates, vector<int> indptr, vector<int> index, 
-                                                                vector<int> level_offset, int lc, vector<int> &visited, vector<vector<double>> vect, int k){
+priority_queue<pair<double,int>> SearchLayer(vector<double> &q,priority_queue<pair<double,int>> candidates, vector<int> &indptr, vector<int> &index, 
+                                                                vector<int> &level_offset, int lc, vector<int> &visited, vector<vector<double>> &vect, int k){
     priority_queue<pair<double,int>> topk = candidates;
     int ep, start, end;
     while(!candidates.empty()){
@@ -47,15 +47,15 @@ priority_queue<pair<double,int>> SearchLayer(vector<double> q,priority_queue<pai
                 continue;
             }
             topk.push({dist,node});
-            topk.pop();
+            if(topk.size()>k) topk.pop();
             candidates.push({dist,node});
         }
     }
     return topk;
 }
 
-void QueryHNSW(vector<double> q,priority_queue<pair<double,int>> &topk, int ep, vector<int> indptr, vector<int> index, 
-                    vector<int> level_offset, int max_level, vector<vector<double>> &vect, int k){
+void QueryHNSW(vector<double> &q,priority_queue<pair<double,int>> &topk, int ep, vector<int> &indptr, vector<int> &index, 
+                    vector<int> &level_offset, int max_level, vector<vector<double>> &vect, int k){
     topk.push({cosine_dist(q,vect[ep]),ep});
     vector<int> visited(vect.size(),0);
     visited[ep] = 1;
@@ -64,8 +64,8 @@ void QueryHNSW(vector<double> q,priority_queue<pair<double,int>> &topk, int ep, 
     }
 }
 
-void helper(int rank, int size, vector<vector<double>> &user, int ep, vector<int> indptr, vector<int> index, 
-            vector<int> level_offset, int max_level, vector<vector<double>> &vect, int k, vector<vector<int>> &results){
+void helper(int rank, int size, vector<vector<double>> &user, int ep, vector<int> &indptr, vector<int> &index, 
+            vector<int> &level_offset, int max_level, vector<vector<double>> &vect, int k, vector<vector<int>> &results){
 
     int step = user.size()/size;
     int start = rank*step;
@@ -74,17 +74,22 @@ void helper(int rank, int size, vector<vector<double>> &user, int ep, vector<int
         end = user.size();
     }
 
-    #pragma omp task
+    cout<<"Starting for rank "<<rank<<"/"<<size-1<<endl;
     for(int i=start;i<end;i++){
-        priority_queue<pair<double,int>> topk;
-        QueryHNSW(user[i], topk, ep, indptr, index, level_offset, max_level, vect, k);
 
-        vector<int> temp;
-        while(!topk.empty()){
-            temp.push_back(topk.top().second);
-            topk.pop();
+        #pragma omp task
+        {
+            cout<<"Start for user "<<i<<endl;
+            priority_queue<pair<double,int>> topk;
+            QueryHNSW(user[i], topk, ep, indptr, index, level_offset, max_level, vect, k);
+            vector<int> temp;
+            while(!topk.empty()){
+                temp.push_back(topk.top().second);
+                topk.pop();
+            }
+            results[i] = temp;
+            cout<<"Done for user "<<i<<endl;
         }
-        results[i] = temp;
     }
     #pragma omp taskwait
 }
@@ -96,7 +101,7 @@ int main(int argc, char* argv[]){
     int k = atoi(argv[1]);
     int C = atoi(argv[2]);
 
-    // cout<<k<<" recommendations using "<<C<<" threads !"<<endl;
+    cout<<k<<" recommendations using "<<C<<" threads !"<<endl;
 
     int max_level;
     fs.open("to_students/max_level.txt",ios::in); 
@@ -210,6 +215,8 @@ int main(int argc, char* argv[]){
         fs.close(); 
     }
     cout<<"8"<<endl;
+
+    cout<<"---------------------------- Data read"<<endl;
 
 
     // cout<<level.size()<<endl;
