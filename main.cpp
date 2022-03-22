@@ -21,15 +21,25 @@ double cosine_dist(vector<double> &U, vector<double> &V)
     double dotp = 0.0, norm_u = 0.0, norm_v = 0.0 ;
     for(int i = 0; i < U.size(); i++) {
         dotp += U[i] * V[i] ;
-        norm_u += U[i] * V[i] ;
-        norm_v += U[i] * V[i] ;
+        norm_u += U[i] * U[i] ;
+        norm_v += V[i] * V[i] ;
     }
     return 1 - dotp/(sqrt(norm_u*norm_v)) ;
 }
 
-priority_queue<pair<double,int>> SearchLayer(vector<double> &q,priority_queue<pair<double,int>> candidates, vector<int> &indptr, vector<int> &index, 
+void SearchLayer(vector<double> &q,priority_queue<pair<double,int>> &topk, vector<int> &indptr, vector<int> &index, 
                                                                 vector<int> &level_offset, int lc, vector<int> &visited, vector<vector<double>> &vect, int k){
-    priority_queue<pair<double,int>> topk = candidates;
+    priority_queue<pair<double,int>> candidates;
+    vector<pair<double,int>> temp;
+    while(!topk.empty()){
+        temp.push_back(topk.top());
+        candidates.push(topk.top());
+        topk.pop();
+    }
+    for(auto x:temp){
+        topk.push(x);
+    }
+
     int ep, start, end;
     while(!candidates.empty()){
         ep = candidates.top().second;
@@ -43,15 +53,14 @@ priority_queue<pair<double,int>> SearchLayer(vector<double> &q,priority_queue<pa
             }
             visited[node]=1;
             double dist = cosine_dist(q,vect[node]);
-            if(dist > topk.top().first and topk.size()==k){
+            if(dist > topk.top().first and topk.size()>=k){
                 continue;
             }
             topk.push({dist,node});
-            if(topk.size()>k) topk.pop();
+            while(topk.size()>k) topk.pop();
             candidates.push({dist,node});
         }
     }
-    return topk;
 }
 
 void QueryHNSW(vector<double> &q,priority_queue<pair<double,int>> &topk, int ep, vector<int> &indptr, vector<int> &index, 
@@ -60,7 +69,7 @@ void QueryHNSW(vector<double> &q,priority_queue<pair<double,int>> &topk, int ep,
     vector<int> visited(vect.size(),0);
     visited[ep] = 1;
     for(int level = max_level;level>=0;level--){
-        topk = SearchLayer(q, topk, indptr, index, level_offset, level, visited, vect, k);
+        SearchLayer(q, topk, indptr, index, level_offset, level, visited, vect, k);
     }
 }
 
@@ -77,8 +86,8 @@ void helper(int rank, int size, vector<vector<double>> &user, int ep, vector<int
     cout<<"Starting for rank "<<rank<<"/"<<size-1<<endl;
     for(int i=start;i<end;i++){
 
-        #pragma omp task
-        {
+        // #pragma omp task
+        // {
             cout<<"Start for user "<<i<<endl;
             priority_queue<pair<double,int>> topk;
             QueryHNSW(user[i], topk, ep, indptr, index, level_offset, max_level, vect, k);
@@ -88,10 +97,17 @@ void helper(int rank, int size, vector<vector<double>> &user, int ep, vector<int
                 topk.pop();
             }
             results[i] = temp;
+
+            // cout<<"Result for User "<<i<<": ";
+            // for(auto j:results[i]){
+            //     cout<<j<<" ";
+            // }
+            // cout<<endl;
+
             cout<<"Done for user "<<i<<endl;
-        }
+        // }
     }
-    #pragma omp taskwait
+    // #pragma omp taskwait
 }
 
 int main(int argc, char* argv[]){
@@ -219,12 +235,14 @@ int main(int argc, char* argv[]){
     cout<<"---------------------------- Data read"<<endl;
 
 
-    // cout<<level.size()<<endl;
-    // cout<<index.size()<<endl;
-    // cout<<indptr.size()<<endl;
-    // cout<<level_offset.size()<<endl;
-    // cout<<vect.size()<<endl;
-    // cout<<user.size()<<endl;
+    cout<<"level "<<level.size()<<endl;
+    cout<<"index "<<index.size()<<endl;
+    cout<<"indptr "<<indptr.size()<<endl;
+    cout<<"level_offset "<<level_offset.size()<<endl;
+    cout<<"vect "<<vect.size()<<endl;
+    cout<<"vect dim "<<vect[0].size()<<endl;
+    cout<<"user "<<user.size()<<endl;
+    cout<<"user dim "<<user[0].size()<<endl;
 
 
     int rank, size;
@@ -237,11 +255,11 @@ int main(int argc, char* argv[]){
 
     vector<vector<int>> results(user.size());
 
-    #pragma omp parallel num_threads(C)
-    {
-        #pragma omp single
+    // #pragma omp parallel num_threads(C)
+    // {
+    //     #pragma omp single
         helper(rank, size, user, ep, indptr, index, level_offset, max_level, vect, k, results);
-    }
+    // }
 
     MPI_Finalize();
 
@@ -249,7 +267,7 @@ int main(int argc, char* argv[]){
 	fsout.open("out.txt",ios::out);
 
     for(int i=0;i<user.size();i++){
-        for(int j=0;j<k;j++){
+        for(int j=k-1;j>=0;j--){
             fsout<<results[i][j]<<" ";
         }
         fsout<<endl;
