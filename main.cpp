@@ -16,10 +16,12 @@ Path of the to_students folder from personal scratch
 
 */
 
-double cosine_dist(vector<double> &U, vector<double> &V)
+int L, D, U;
+
+double cosine_dist(vector<double> &U, double* V)
 {
     double dotp = 0.0, norm_u = 0.0, norm_v = 0.0 ;
-    for(int i = 0; i < U.size(); i++) {
+    for(int i = 0; i < D; i++) {
         dotp += U[i] * V[i] ;
         norm_u += U[i] * U[i] ;
         norm_v += V[i] * V[i] ;
@@ -28,7 +30,7 @@ double cosine_dist(vector<double> &U, vector<double> &V)
 }
 
 void SearchLayer(vector<double> &q,priority_queue<pair<double,int>> &topk, vector<int> &indptr, vector<int> &index, 
-                                                                vector<int> &level_offset, int lc, vector<int> &visited, vector<vector<double>> &vect, int k){
+                    vector<int> &level_offset, int lc, vector<int> &visited, double* vect, int k){
     priority_queue<pair<double,int>> candidates;
     vector<pair<double,int>> temp;
     while(!topk.empty()){
@@ -52,7 +54,7 @@ void SearchLayer(vector<double> &q,priority_queue<pair<double,int>> &topk, vecto
                 continue;
             }
             visited[node]=1;
-            double dist = cosine_dist(q,vect[node]);
+            double dist = cosine_dist(q,vect+ node*D);
             if(dist > topk.top().first and topk.size()>=k){
                 continue;
             }
@@ -64,9 +66,9 @@ void SearchLayer(vector<double> &q,priority_queue<pair<double,int>> &topk, vecto
 }
 
 void QueryHNSW(vector<double> &q,priority_queue<pair<double,int>> &topk, int ep, vector<int> &indptr, vector<int> &index, 
-                    vector<int> &level_offset, int max_level, vector<vector<double>> &vect, int k){
-    topk.push({cosine_dist(q,vect[ep]),ep});
-    vector<int> visited(vect.size(),0);
+                    vector<int> &level_offset, int max_level, double* vect, int k){
+    topk.push({cosine_dist(q,vect+ep*D),ep});
+    vector<int> visited(L,0);
     visited[ep] = 1;
     for(int level = max_level;level>=0;level--){
         SearchLayer(q, topk, indptr, index, level_offset, level, visited, vect, k);
@@ -74,23 +76,33 @@ void QueryHNSW(vector<double> &q,priority_queue<pair<double,int>> &topk, int ep,
 }
 
 void helper(int rank, int size, vector<vector<double>> &user, int ep, vector<int> &indptr, vector<int> &index, 
-            vector<int> &level_offset, int max_level, vector<vector<double>> &vect, int k, vector<vector<int>> &results){
+            vector<int> &level_offset, int max_level, double* vect, int k, vector<vector<int>> &results){
 
-    int step = user.size()/size;
+    int step = U/size;
     int start = rank*step;
     int end = (rank + 1)*step;
     if(rank == size-1){
-        end = user.size();
+        end = U;
     }
 
-    cout<<"Starting for rank "<<rank<<"/"<<size-1<<endl;
-    for(int i=start;i<end;i++){
+    //cout<<"Starting for rank "<<rank<<"/"<<size-1<<endl;
+    int num_threads = omp_get_num_threads();
+    //cout<<omp_get_num_threads()<<endl;
 
-        // #pragma omp task
-        // {
-            cout<<"Start for user "<<i<<endl;
+
+    int step__ = (end-start)/num_threads;
+    for(int j=0;j<num_threads;j++){
+        //cout<<"Start Thread "<<j+1<<"/"<<num_threads<<endl;
+        int start__ = start + j*step__;
+        int end__ = start + (j+1)*step__;
+        if(j==num_threads-1) end__ = end;
+    
+        #pragma omp task shared(results)
+        for(int i=start__;i<end__;i++)
+        {
+            //cout<<"Start for user "<<i<<endl;
             priority_queue<pair<double,int>> topk;
-            QueryHNSW(user[i], topk, ep, indptr, index, level_offset, max_level, vect, k);
+            QueryHNSW(user[i-start], topk, ep, indptr, index, level_offset, max_level, vect, k);
             vector<int> temp;
             while(!topk.empty()){
                 temp.push_back(topk.top().second);
@@ -98,152 +110,100 @@ void helper(int rank, int size, vector<vector<double>> &user, int ep, vector<int
             }
             results[i] = temp;
 
-            // cout<<"Result for User "<<i<<": ";
-            // for(auto j:results[i]){
-            //     cout<<j<<" ";
-            // }
-            // cout<<endl;
-
-            cout<<"Done for user "<<i<<endl;
-        // }
+            //cout<<"User "<<i<<" "<<temp[1]<<" "<<temp[0]<<endl;
+        }
+        //cout<<"Done Thread "<<j+1<<"/"<<num_threads<<endl;
     }
-    // #pragma omp taskwait
+    #pragma omp taskwait
 }
 
 int main(int argc, char* argv[]){
 
-    fstream fs;
+    ifstream fs;
 
     int k = atoi(argv[1]);
     int C = atoi(argv[2]);
 
-    cout<<k<<" recommendations using "<<C<<" threads !"<<endl;
-
     int max_level;
-    fs.open("to_students/max_level.txt",ios::in); 
-    if (fs.is_open()){ 
-        string tp;
-        while(getline(fs, tp)){ 
-            if(tp=="") break;
-            max_level = stoi(tp);
-            break;
-        }
-        fs.close(); 
-    }
-    cout<<"1"<<endl;
+    fs.open("bin_inputs/max_level", ios::binary | ios::in);
+    fs.read((char *)&max_level, sizeof(max_level));
+    fs.close();
+    //cout << max_level <<'\n';
 
     int ep;
-    fs.open("to_students/ep.txt",ios::in); 
-    if (fs.is_open()){ 
-        string tp;
-        while(getline(fs, tp)){ 
-            if(tp=="") break;
-            ep = stoi(tp);
-            break;
-        }
-        fs.close(); 
-    }
-    cout<<"2"<<endl;
+    fs.open("bin_inputs/ep", ios::binary | ios::in);
+    fs.read((char *)&ep, sizeof(ep));
+    fs.close();
+    //cout << ep <<'\n';    
 
     vector<int> level;
-    fs.open("to_students/level.txt",ios::in); 
-    if (fs.is_open()){ 
-        string tp;
-        while(getline(fs, tp)){ 
-            if(tp=="") break;
-            level.push_back(stoi(tp));
+    fs.open("bin_inputs/level",ios::binary | ios::in); 
+    fs.seekg(0, ios::end);
+    int file_size = fs.tellg()/4; 
+    //cout << file_size <<'\n';
+    fs.close();
+    fs.open("bin_inputs/level",ios::binary | ios::in); 
+    if (fs.is_open()){
+        int tp;
+        for (int j=0;j<file_size;j++){
+            fs.read((char *)&tp, sizeof(tp));
+            level.push_back(tp);
         }
         fs.close(); 
     }
-    cout<<"3"<<endl;
+    //cout << level.size()<< "  "<<level[file_size-1] <<'\n';
 
     vector<int> index;
-    fs.open("to_students/index.txt",ios::in); 
-    if (fs.is_open()){ 
-        string tp;
-        while(getline(fs, tp)){ 
-            if(tp=="") break;
-            index.push_back(stoi(tp));
+    fs.open("bin_inputs/index",ios::binary | ios::in); 
+    fs.seekg(0, ios::end);
+    file_size = fs.tellg()/4; 
+    //cout << file_size <<'\n';
+    fs.close();
+    fs.open("bin_inputs/index",ios::binary | ios::in);  
+    if (fs.is_open()){
+        int tp;
+        for (int j=0;j<file_size;j++){
+            fs.read((char *)&tp, sizeof(tp));
+            index.push_back(tp);
         }
         fs.close(); 
     }
-    cout<<"4"<<endl;
+    //cout << index.size()<< "  "<<index[file_size-1] <<'\n';
+
 
     vector<int> indptr;
-    fs.open("to_students/indptr.txt",ios::in); 
-    if (fs.is_open()){ 
-        string tp;
-        while(getline(fs, tp)){ 
-            if(tp=="") break;
-            indptr.push_back(stoi(tp));
+    fs.open("bin_inputs/indptr",ios::binary | ios::in); 
+    fs.seekg(0, ios::end);
+    file_size = fs.tellg()/4; 
+    //cout << file_size <<'\n';
+    fs.close();
+    fs.open("bin_inputs/indptr",ios::binary | ios::in);
+    if (fs.is_open()){
+        int tp;
+        for (int j=0;j<file_size;j++){
+            fs.read((char *)&tp, sizeof(tp));
+            indptr.push_back(tp);
         }
         fs.close(); 
-    }
-    cout<<"5"<<endl;
+    }  
+    //cout << indptr.size()<< "  "<<indptr[file_size-1] <<'\n';
 
     vector<int> level_offset;
-    fs.open("to_students/level_offset.txt",ios::in); 
-    if (fs.is_open()){ 
-        string tp;
-        while(getline(fs, tp)){ 
-            if(tp=="") break;
-            level_offset.push_back(stoi(tp));
+    fs.open("bin_inputs/level_offset",ios::binary | ios::in); 
+    fs.seekg(0, ios::end);
+    file_size = fs.tellg()/4; 
+    //cout << file_size <<'\n';
+    fs.close();
+    fs.open("bin_inputs/level_offset",ios::binary | ios::in);
+    if (fs.is_open()){
+        int tp;
+        for (int j=0;j<file_size;j++){
+            fs.read((char *)&tp, sizeof(tp));
+            level_offset.push_back(tp);
         }
         fs.close(); 
-    }
-    cout<<"6"<<endl;
-
-    vector<vector<double>> vect;
-    fs.open("to_students/vect.txt",ios::in); 
-    if (fs.is_open()){ 
-        string tp;
-
-        while(getline(fs, tp)){ 
-            if(tp=="") break;
-            istringstream ss(tp);
-    		string word;
-            vector<double> temp;
-    		while (ss >> word) 
-    		{
-        		temp.push_back(stod(word));
-    		}
-            vect.push_back(temp);
-        }
-        fs.close(); 
-    }
-    cout<<"7"<<endl;
-
-    vector<vector<double>> user;
-    fs.open("to_students/user.txt",ios::in); 
-    if (fs.is_open()){ 
-        string tp;
-        while(getline(fs, tp)){ 
-            if(tp=="") break;
-            istringstream ss(tp);
-    		string word;
-            vector<double> temp;
-    		while (ss >> word) 
-    		{
-        		temp.push_back(stod(word));
-    		}
-            user.push_back(temp);
-        }
-        fs.close(); 
-    }
-    cout<<"8"<<endl;
-
-    cout<<"---------------------------- Data read"<<endl;
-
-
-    cout<<"level "<<level.size()<<endl;
-    cout<<"index "<<index.size()<<endl;
-    cout<<"indptr "<<indptr.size()<<endl;
-    cout<<"level_offset "<<level_offset.size()<<endl;
-    cout<<"vect "<<vect.size()<<endl;
-    cout<<"vect dim "<<vect[0].size()<<endl;
-    cout<<"user "<<user.size()<<endl;
-    cout<<"user dim "<<user[0].size()<<endl;
-
+    }  
+    //cout << level_offset.size()<< "  "<<level_offset[file_size-1] <<'\n';
 
     int rank, size;
     //Starting MPI pipeline
@@ -253,24 +213,159 @@ int main(int argc, char* argv[]){
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    vector<vector<int>> results(user.size());
+    fs.open("bin_inputs/arguments",ios::binary | ios::in); 
+    
+    fs.read((char*)&U, sizeof U);
+    fs.read((char*)&L, sizeof L);
+    fs.read((char*)&D, sizeof D);
+    fs.close();
 
+    //cout<<L<<" "<<D<<" "<<U<<endl;
+
+
+    int step = U/size;
+    int start = rank*step;
+    int end = (rank + 1)*step;
+    if(rank == size-1){
+        end = U;
+    }
+    vector<vector<double>> user(end-start,vector<double>());
+    fs.open("bin_inputs/user",ios::binary | ios::in);
+    fs.seekg(step*rank*D*sizeof(double), std::ios::beg);
+    if (fs.is_open()){
+        double tp;
+        for(int j=start;j<end;j++){
+            for(int k=0;k<D;k++){
+                fs.read((char *)&tp, sizeof(tp));
+                user[j-start].push_back(tp);
+            }
+        }
+
+        fs.close(); 
+    }
+    //cout<<"At rank "<<rank<<": "<<user.size()<<" "<<user[4999].size()<<endl;
+
+    // step = L/size;
+    // start = rank*step;
+    // end = (rank + 1)*step;
+    // if(rank == size-1){
+    //     end = L;
+    // }
+
+
+    // double* vect = new double[L*D];
+    // double* temp = new double[(end-start)*D];
+    // int* recvcount = new int[size];
+    // int* disp = new int[size];
+    // fs.open("bin_inputs/vect",ios::binary | ios::in);
+    // fs.seekg(step*rank*D*sizeof(double), std::ios::beg);
+    // if (fs.is_open()){
+    //     double tp;
+    //     for(int j=start;j<end;j++){
+    //         for(int k=0;k<D;k++){
+    //             fs.read((char *)&tp, sizeof(tp));
+    //             temp[(j-start)*D + k] = tp;
+    //         }
+    //     }
+    //     fs.close(); 
+    // }
+
+    // for(int i=0;i<size;i++){
+    //     if(i==size-1){
+    //         recvcount[i] = L*D - i*step*D;
+    //     }else {
+    //         recvcount[i] = step*D;
+    //         disp[i] = i*step*D;
+    //     }
+    // }
+
+
+    // MPI_Allgatherv(temp, (end-start)*D, MPI_DOUBLE , vect, recvcount, disp, MPI_DOUBLE, MPI_COMM_WORLD);
+
+
+    double* vect = new double[L*D];
+    fs.open("bin_inputs/vect",ios::binary | ios::in);
+    if (fs.is_open()){
+        double tp;
+        for(int j=0;j<L;j++){
+            for(int k=0;k<D;k++){
+                fs.read((char *)&tp, sizeof(tp));
+                vect[j*D + k] = tp;
+            }
+        }
+        fs.close(); 
+    }
+
+    //cout<<"Reading done !"<<endl;
+
+
+    step = U/size;
+    start = rank*step;
+    end = (rank + 1)*step;
+    if(rank == size-1){
+        end = U;
+    }
+    
     // #pragma omp parallel num_threads(C)
     // {
     //     #pragma omp single
-        helper(rank, size, user, ep, indptr, index, level_offset, max_level, vect, k, results);
-    // }
+
+    
+    vector<vector<int>> results(U);
+
+    
+
+    #pragma omp parallel num_threads(C)
+    {
+        #pragma omp single
+        {
+            helper(rank, size, user, ep, indptr, index, level_offset, max_level, vect, k, results);
+            //cout<<"DONE-------------------------------------------------------------"<<endl;
+        }
+    }
+    //cout<<"Hello I am rank "<<rank<<endl;
+
+    //cout<<"Rank "<<rank<<": "<<results.size()<<endl;
+
+    //cout<<"I WAS HERE"<<endl;
+
+    //cout<<results.size()<<" "<<results[0].size()<<endl;
+
+    
+
+    fstream wf("user_prediction", ios::out | ios::binary);
+    wf.seekp(rank*step*k*sizeof(int), std::ios::beg);
+    for(int i=start;i<end;i++){
+        for(int j=k-1;j>=0;j--){
+            //cout<<rank<<" "<<i<<" "<<j<<endl;
+            wf.write((char*)&results[i][j], sizeof(int));
+        }
+        //if(rank==1) cout<<"User "<<i<<": "<<results[i-start][1]<<" "<<results[i-start][0]<<endl;
+    }
+    wf.close();
+    
+
+    //cout<<"I CAME HERE"<<endl;
+
+    MPI_Barrier(MPI_COMM_WORLD);
+
+    if(rank==0){
+
+        fstream fsout;
+        fsout.open("user_prediction.txt",ios::out);
+        std::fstream ifs("user_prediction", std::ios::in | std::ios::binary);
+        int tp;
+        for(int i=0;i<U;i++){
+            for(int j=0;j<k;j++){
+                ifs.read((char *)&tp, sizeof(tp));
+                fsout<<tp<<" ";
+            }
+            fsout<<endl;
+        }
+        fsout.close();
+        ifs.close();
+    }
+
 
     MPI_Finalize();
-
-    fstream fsout;
-	fsout.open("out.txt",ios::out);
-
-    for(int i=0;i<user.size();i++){
-        for(int j=k-1;j>=0;j--){
-            fsout<<results[i][j]<<" ";
-        }
-        fsout<<endl;
-    }
-    fsout.close();
 }
